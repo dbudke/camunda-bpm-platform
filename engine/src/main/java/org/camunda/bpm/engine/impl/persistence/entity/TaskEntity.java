@@ -285,61 +285,70 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   }
 
   public void complete() {
+    modify(new TaskModifier() {
+      @Override
+      public void modifyTask(TaskEntity task) {
+        if (TaskListener.EVENTNAME_COMPLETE.equals(task.eventName) || TaskListener.EVENTNAME_DELETE.equals(task.eventName)) {
+          throw LOG.invokeTaskListenerException(new IllegalStateException("invalid task state"));
+        }
+        // if the task is associated with a case
+        // execution then call complete on the
+        // associated case execution. The case
+        // execution handles the completion of
+        // the task.
+        if (caseExecutionId != null) {
+          getCaseExecution().manualComplete();
+          return;
+        }
 
-    if (TaskListener.EVENTNAME_COMPLETE.equals(this.eventName) || TaskListener.EVENTNAME_DELETE.equals(this.eventName)) {
-      throw LOG.invokeTaskListenerException(new IllegalStateException("invalid task state"));
-    }
-    // if the task is associated with a case
-    // execution then call complete on the
-    // associated case execution. The case
-    // execution handles the completion of
-    // the task.
-    if (caseExecutionId != null) {
-      getCaseExecution().manualComplete();
-      return;
-    }
+        // in the other case:
 
-    // in the other case:
+        // ensure the the Task is not suspended
+        ensureTaskActive();
 
-    // ensure the the Task is not suspended
-    ensureTaskActive();
+        // trigger TaskListener.complete event
+        final boolean listenersSuccessful = fireEvent(TaskListener.EVENTNAME_COMPLETE);
 
-    // trigger TaskListener.complete event
-    final boolean listenersSuccessful = fireEvent(TaskListener.EVENTNAME_COMPLETE);
+        if (listenersSuccessful)
+        {
+          // delete the task
+          Context
+              .getCommandContext()
+              .getTaskManager()
+              .deleteTask(task, TaskEntity.DELETE_REASON_COMPLETED, false, skipCustomListeners);
 
-    if (listenersSuccessful)
-    {
-      // delete the task
-      Context
-      .getCommandContext()
-      .getTaskManager()
-      .deleteTask(this, TaskEntity.DELETE_REASON_COMPLETED, false, skipCustomListeners);
-
-      // if the task is associated with a
-      // execution (and not a case execution)
-      // and it's still in the same activity
-      // then call signal an the associated
-      // execution.
-      if (executionId !=null) {
-        ExecutionEntity execution = getExecution();
-        execution.removeTask(this);
-        execution.signal(null, null);
+          // if the task is associated with a
+          // execution (and not a case execution)
+          // and it's still in the same activity
+          // then call signal an the associated
+          // execution.
+          if (executionId !=null) {
+            ExecutionEntity execution = getExecution();
+            execution.removeTask(task);
+            execution.signal(null, null);
+          }
+        }
       }
-    }
+    });
   }
 
   public void caseExecutionCompleted() {
-    // ensure the the Task is not suspended
-    ensureTaskActive();
+    modify(new TaskModifier() {
+      @Override
+      public void modifyTask(TaskEntity task) {
+        // ensure the the Task is not suspended
+        ensureTaskActive();
 
-    // trigger TaskListener.complete event
-    fireEvent(TaskListener.EVENTNAME_COMPLETE);
+        // trigger TaskListener.complete event
+        fireEvent(TaskListener.EVENTNAME_COMPLETE);
 
-    // delete the task
-    Context
-      .getCommandContext()
-      .getTaskManager()
-      .deleteTask(this, TaskEntity.DELETE_REASON_COMPLETED, false, false);
+        // delete the task
+        Context
+            .getCommandContext()
+            .getTaskManager()
+            .deleteTask(task, TaskEntity.DELETE_REASON_COMPLETED, false, false);
+      }
+    });
   }
 
   public void delete(String deleteReason, boolean cascade) {
@@ -853,29 +862,34 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   }
 
   @Override
-  public void setAssignee(String assignee) {
-    ensureTaskActive();
-    registerCommandContextCloseListener();
+  public void setAssignee(final String assignee) {
+    modify(new TaskModifier() {
+      @Override
+      public void modifyTask(TaskEntity task) {
+        ensureTaskActive();
+        registerCommandContextCloseListener();
 
-    String oldAssignee = this.assignee;
-    if (assignee==null && oldAssignee==null) {
-      return;
-    }
+        String oldAssignee = task.assignee;
+        if (assignee==null && oldAssignee==null) {
+          return;
+        }
 
-    addIdentityLinkChanges(IdentityLinkType.ASSIGNEE, oldAssignee, assignee);
-    propertyChanged(ASSIGNEE, oldAssignee, assignee);
-    this.assignee = assignee;
+        addIdentityLinkChanges(IdentityLinkType.ASSIGNEE, oldAssignee, assignee);
+        propertyChanged(ASSIGNEE, oldAssignee, assignee);
+        task.assignee = assignee;
 
-    CommandContext commandContext = Context.getCommandContext();
-    // if there is no command context, then it means that the user is calling the
-    // setAssignee outside a service method.  E.g. while creating a new task.
-    if (commandContext != null) {
-      fireEvent(TaskListener.EVENTNAME_ASSIGNMENT);
-      if (commandContext.getDbEntityManager().contains(this)) {
-        fireAssigneeAuthorizationProvider(oldAssignee, assignee);
-        fireHistoricIdentityLinks();
+        CommandContext commandContext = Context.getCommandContext();
+        // if there is no command context, then it means that the user is calling the
+        // setAssignee outside a service method.  E.g. while creating a new task.
+        if (commandContext != null) {
+          fireEvent(TaskListener.EVENTNAME_ASSIGNMENT);
+          if (commandContext.getDbEntityManager().contains(task)) {
+            fireAssigneeAuthorizationProvider(oldAssignee, assignee);
+            fireHistoricIdentityLinks();
+          }
+        }
       }
-    }
+    });
   }
 
   /* plain setter for persistence */
@@ -1100,9 +1114,16 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   }
 
   public void fireEvents() {
-    PropertyChange assigneePropertyChange = propertyChanges.get(ASSIGNEE);
-    if (assigneePropertyChange != null) {
-      fireEvent(TaskListener.EVENTNAME_ASSIGNMENT);
+    final PropertyChange assigneePropertyChange = propertyChanges.get(ASSIGNEE);
+    if (!propertyChanges.isEmpty()) {
+      modify(new TaskModifier() {
+        @Override
+        public void modifyTask(TaskEntity task) {
+          if (assigneePropertyChange != null) {
+            fireEvent(TaskListener.EVENTNAME_ASSIGNMENT);
+          }
+        }
+      });
     }
   }
 
@@ -1590,5 +1611,12 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
     }
 
     return referenceIdAndClass;
+  }
+
+  public void modify(TaskModifier modifier) {
+    modifier.modifyTask(this);
+    if (Context.getCommandContext() != null) {
+      fireEvent(TaskListener.EVENTNAME_UPDATE);
+    }
   }
 }
