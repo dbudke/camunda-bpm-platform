@@ -50,6 +50,7 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.bpmn.tasklistener.util.UpdateTaskListener;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener.RecordedTaskEvent;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.TaskDeleteListener;
@@ -91,6 +92,9 @@ public class TaskListenerTest {
     taskService = engineRule.getTaskService();
     historyService = engineRule.getHistoryService();
     processEngineConfiguration = engineRule.getProcessEngineConfiguration();
+
+    AssignmentTaskListener.reset();
+    UpdateTaskListener.reset();
   }
 
   @Before
@@ -383,9 +387,145 @@ public class TaskListenerTest {
   }
 
   @Test
-  public void testAssignmentTaskListenerWhenSavingTask() {
-    AssignmentTaskListener.reset();
+  public void testUpdateTaskListenerOnComplete() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+                                            .startEvent()
+                                              .userTask("task")
+                                                .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                                                          UpdateTaskListener.class)
+                                              .userTask("task2")
+                                            .endEvent()
+                                          .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
 
+    // when
+    // Completing the first task
+    engineRule.getTaskService().complete(task.getId());
+
+    // then
+    assertEquals(1, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testUpdateTaskListenerOnAssign() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+        .startEvent()
+          .userTask("task")
+            .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                      UpdateTaskListener.class.getName())
+        .endEvent()
+        .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
+
+    // when
+    task.setAssignee("gonzo");
+    engineRule.getTaskService().saveTask(task);
+
+    // then
+    assertEquals(1, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testUpdateTaskListenerOnClaim() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+                                          .startEvent()
+                                          .userTask("task")
+                                          .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                                                    UpdateTaskListener.class)
+                                          .endEvent()
+                                          .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
+
+    // when
+    engineRule.getTaskService().claim(task.getId(), "test");
+
+    // then
+    assertEquals(1, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testUpdateTaskListenerOnAssignAndComplete() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+                                          .startEvent()
+                                          .userTask("task")
+                                          .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                                                    UpdateTaskListener.class.getName())
+                                          .userTask("task2")
+                                          .endEvent()
+                                          .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
+
+    // when
+    task.setAssignee("gonzo");
+    engineRule.getTaskService().saveTask(task);
+    engineRule.getTaskService().complete(task.getId());
+
+    // then
+    assertEquals(2, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testUpdateTaskListenerOnPropertyUpdate() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+                                          .startEvent()
+                                          .userTask("task")
+                                          .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                                                    UpdateTaskListener.class.getName())
+                                          .userTask("task2")
+                                          .endEvent()
+                                          .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
+
+    // when
+    task.setDueDate(new Date());
+    engineRule.getTaskService().saveTask(task);
+
+    // then
+    assertEquals(1, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testUpdateTaskListenerOnPropertyUpdateOnlyOnce() {
+    // given
+    final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+                                          .startEvent()
+                                          .userTask("task")
+                                          .camundaTaskListenerClass(TaskListener.EVENTNAME_UPDATE,
+                                                                    UpdateTaskListener.class.getName())
+                                          .userTask("task2")
+                                          .endEvent()
+                                          .done();
+    testRule.deploy(process);
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("process");
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
+
+    // when
+    task.setAssignee("test");
+    task.setDueDate(new Date());
+    task.setOwner("test");
+    engineRule.getTaskService().saveTask(task);
+
+    // then
+    assertEquals(1, UpdateTaskListener.eventCounter);
+  }
+
+  @Test
+  public void testAssignmentTaskListenerWhenSavingTask() {
     final BpmnModelInstance process = Bpmn.createExecutableProcess("process")
         .startEvent()
         .userTask("task")

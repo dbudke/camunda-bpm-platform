@@ -119,6 +119,44 @@ public class TaskListenerDelegateCompletionTest {
   }
 
   @Test
+  public void testCompletionIsNotPossibleAfterAssignmentUpdate () {
+    // expect
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage(containsString("There was an exception while invoking the TaskListener."));
+
+    //given
+    createProcessWithListener(TaskListener.EVENTNAME_UPDATE);
+
+    //when
+    runtimeService.startProcessInstanceByKey(TASK_LISTENER_PROCESS);
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.setAssignee(task.getId(),"test assignee");
+
+    //then
+    task = taskService.createTaskQuery().singleResult();
+    assertThat(task, is(nullValue()));
+  }
+
+  @Test
+  public void testCompletionIsNotPossibleAfterCompletionUpdate () {
+    // expect
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage(containsString("There was an exception while invoking the TaskListener."));
+
+    //given
+    createProcessWithListener(TaskListener.EVENTNAME_UPDATE);
+
+    //when
+    runtimeService.startProcessInstanceByKey(TASK_LISTENER_PROCESS);
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.complete(task.getId());
+
+    //then
+    task = taskService.createTaskQuery().singleResult();
+    assertThat(task, is(nullValue()));
+  }
+
+  @Test
   @Deployment
   public void testCompletionIsPossibleOnTimeout() {
     TaskQuery taskQuery = taskService.createTaskQuery();

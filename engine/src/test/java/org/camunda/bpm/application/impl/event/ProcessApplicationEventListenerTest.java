@@ -329,20 +329,23 @@ public class ProcessApplicationEventListenerTest extends ResourceProcessEngineTe
     Task task = taskService.createTaskQuery().singleResult();
     //assign task:
     taskService.setAssignee(task.getId(), "jonny");
-    assertEquals(2, events.size());
+    assertEquals(3, events.size());
     assertEquals(TaskListener.EVENTNAME_ASSIGNMENT, events.get(1));
+    assertEquals(TaskListener.EVENTNAME_UPDATE, events.get(2));
 
     // complete task
     taskService.complete(task.getId());
-    assertEquals(4, events.size());
-    assertEquals(TaskListener.EVENTNAME_COMPLETE, events.get(2));
+    assertEquals(6, events.size());
+    assertEquals(TaskListener.EVENTNAME_COMPLETE, events.get(3));
     // next task was created
-    assertEquals(TaskListener.EVENTNAME_CREATE, events.get(3));
+    assertEquals(TaskListener.EVENTNAME_CREATE, events.get(4));
+    // update event for previous task completion is called
+    assertEquals(TaskListener.EVENTNAME_UPDATE, events.get(5));
 
     // delete process instance so last task will be deleted
     runtimeService.deleteProcessInstance(taskListenerProcess.getProcessInstanceId(), "test delete event");
-    assertEquals(5, events.size());
-    assertEquals(TaskListener.EVENTNAME_DELETE, events.get(4));
+    assertEquals(7, events.size());
+    assertEquals(TaskListener.EVENTNAME_DELETE, events.get(6));
 
   }
 
