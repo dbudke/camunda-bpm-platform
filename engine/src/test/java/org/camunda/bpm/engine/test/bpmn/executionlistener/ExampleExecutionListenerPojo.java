@@ -20,7 +20,7 @@ import java.io.Serializable;
 
 /**
  * Simple pojo than will be used to act as an event listener.
- * 
+ *
  * @author Frederik Heremans
  */
 public class ExampleExecutionListenerPojo implements Serializable {
@@ -28,9 +28,10 @@ public class ExampleExecutionListenerPojo implements Serializable {
   private static final long serialVersionUID = 1L;
 
   private String receivedEventName;
-  
+
   public void myMethod(String eventName) {
     this.receivedEventName = eventName;
+    throw new IllegalArgumentException("NOOOOOOOOOOOO");
   }
 
   public String getReceivedEventName() {

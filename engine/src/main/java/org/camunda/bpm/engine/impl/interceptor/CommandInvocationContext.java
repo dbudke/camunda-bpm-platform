@@ -24,6 +24,7 @@ import org.apache.ibatis.exceptions.PersistenceException;
 import org.camunda.bpm.application.InvocationContext;
 import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.context.ProcessDataLoggingContext;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
@@ -47,6 +48,7 @@ public class CommandInvocationContext {
   protected boolean isExecuting = false;
   protected List<AtomicOperationInvocation> queuedInvocations = new ArrayList<AtomicOperationInvocation>();
   protected BpmnStackTrace bpmnStackTrace = new BpmnStackTrace();
+  protected ProcessDataLoggingContext loggingContext = new ProcessDataLoggingContext();
 
   public CommandInvocationContext(Command<?> command) {
     this.command = command;
@@ -124,8 +126,12 @@ public class CommandInvocationContext {
 
   protected void invokeNext() {
     AtomicOperationInvocation invocation = queuedInvocations.remove(0);
+    boolean popInstance = loggingContext.pushInstanceId(invocation.getExecution().getProcessInstanceId());
     try {
-      invocation.execute(bpmnStackTrace);
+      invocation.execute(bpmnStackTrace, loggingContext);
+      if (popInstance) {
+        loggingContext.popInstanceId();
+      }
     }
     catch(RuntimeException e) {
       // log bpmn stacktrace
@@ -155,5 +161,13 @@ public class CommandInvocationContext {
         throw new ProcessEngineException("exception while executing command " + command, throwable);
       }
     }
+  }
+
+  public void updateLoggingContext() {
+    loggingContext.update();
+  }
+
+  public void clearLoggingContext() {
+    loggingContext.clear();
   }
 }

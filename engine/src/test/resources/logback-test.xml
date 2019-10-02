@@ -4,7 +4,7 @@
     <!-- encoders are assigned the type
          ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
     <encoder>
-      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} context: [%X] - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -28,14 +28,14 @@
 <!--   <logger name="org.camunda.bpm.engine.cmmn.behavior" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.cmmn.operation" level="debug" /> -->
 
-<!--   <logger name="org.camunda.bpm.engine.cmd" level="debug" /> -->
+  <logger name="org.camunda.bpm.engine.cmd" level="debug" />
 <!--   <logger name="org.camunda.bpm.engine.persistence" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.tx" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.cfg" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.jobexecutor" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.context" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.core" level="debug" /> -->
-<!--   <logger name="org.camunda.bpm.engine.pvm" level="debug" /> -->
+  <logger name="org.camunda.bpm.engine.pvm" level="debug" />
 
 <!--   <logger name="org.camunda.bpm.engine.metrics" level="debug" /> -->
 <!--   <logger name="org.camunda.bpm.engine.util" level="debug" /> -->

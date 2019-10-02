@@ -77,7 +77,13 @@ public class Context {
   }
 
   public static void removeCommandInvocationContext() {
-    getStack(commandInvocationContextThreadLocal).pop();
+    Stack<CommandInvocationContext> stack = getStack(commandInvocationContextThreadLocal);
+    CommandInvocationContext currentContext = stack.pop();
+    if (stack.isEmpty()) {
+      currentContext.clearLoggingContext();
+    } else {
+      stack.peek().updateLoggingContext();
+    }
   }
 
   public static ProcessEngineConfigurationImpl getProcessEngineConfiguration() {

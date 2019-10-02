@@ -17,6 +17,7 @@
 package org.camunda.bpm.engine.impl.interceptor;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
+import org.camunda.bpm.engine.context.ProcessDataLoggingContext;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -54,7 +55,7 @@ public class AtomicOperationInvocation {
     this.performAsync = performAsync;
   }
 
-  public void execute(BpmnStackTrace stackTrace) {
+  public void execute(BpmnStackTrace stackTrace, ProcessDataLoggingContext loggingContext) {
 
     if(operation != PvmAtomicOperation.ACTIVITY_START_CANCEL_SCOPE
        && operation != PvmAtomicOperation.ACTIVITY_START_INTERRUPT_SCOPE
@@ -88,6 +89,7 @@ public class AtomicOperationInvocation {
     activityId = execution.getActivityId();
     activityName = execution.getCurrentActivityName();
     stackTrace.add(this);
+    boolean popActivity = loggingContext.pushActivityId(activityId);
 
     try {
       Context.setExecutionContext(execution);
@@ -97,6 +99,9 @@ public class AtomicOperationInvocation {
       }
       else {
         execution.scheduleAtomicOperationAsync(this);
+      }
+      if (popActivity) {
+        loggingContext.popActivityId();
       }
     } finally {
       Context.removeExecutionContext();
